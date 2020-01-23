@@ -87,5 +87,7 @@ ggplot() +
                                     family = "Didot"),
         plot.background = element_rect(fill = "#282828")
                                     )
+
+ggsave("Plessur_map.png", width = 297, height = 420, units = "mm", dpi = "retina")
 ```
 

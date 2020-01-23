@@ -87,4 +87,6 @@ ggplot() +
                                     family = "Didot"),
         plot.background = element_rect(fill = "#282828")
                                     )
+ggsave("San_Francisco_map.png", width = 297, height = 420, units = "mm", dpi = "retina")
+
 ```
