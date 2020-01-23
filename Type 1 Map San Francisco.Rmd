@@ -1,0 +1,90 @@
+
+```{r}
+# clear environment and load packages
+rm(list = ls(all.names = TRUE))
+library(tidyverse)
+library(sf)
+library(raster)
+```
+
+The zipped version of this shapefile folder is nearly 600 MB, and ~1.5Gb unzipped; some of the indiviudal files are >300MB so they're much too big to host on GitHub. They're stored locally in my "ShapeFile Storage" folder which is within the same local master directory as this project.
+```{r}
+# Download NorCal shapefile information;  only complete if files not already downloaded to the ShapeFile Storage folder
+if (!dir.exists("../ShapeFile Storage/shapefiles_SF")) {
+  url <- "http://download.geofabrik.de/north-america/us/california/norcal-latest-free.shp.zip"
+  setwd("../ShapeFile Storage")
+  curl::curl_download(url, destfile="NorCal_shapes.shp.zip")
+  unzip("NorCal_shapes.shp.zip", exdir="shapefiles_SF")
+}
+```
+
+```{r}
+# Read in data files
+setwd("../ShapeFile Storage/shapefiles_SF")
+places_import <- read_sf(".", "gis_osm_places_a_free_1")
+roads_import <- read_sf(".", "gis_osm_roads_free_1")
+water_import <- read_sf(".", "gis_osm_water_a_free_1")
+waterways_import <- read_sf(".", "gis_osm_waterways_free_1")
+railways_import <- read_sf(".", "gis_osm_railways_free_1")
+setwd(here::here())
+```
+
+```{r}
+# Select San Francisco boundaries
+# OSM lookup https://nominatim.openstreetmap.org/search.php?q=san+francisco&polygon_geojson=1&viewbox=
+places_san_francisco <- places_import %>%
+    filter(osm_id == 111968)
+
+roads_cropped <- st_intersection(roads_import, places_san_francisco)
+water_cropped <- st_intersection(water_import, places_san_francisco)
+waterways_cropped <- st_intersection(waterways_import, places_san_francisco)
+railways_cropped <- st_intersection(railways_import, places_san_francisco)
+```
+
+```{r}
+# Clean up the roads information
+roads_cleaned <- roads_cropped %>% 
+  filter(!(fclass  %in% c("steps", "footway", "living_street"))) %>%
+  mutate(newclass = str_replace(fclass, "_link", ""),  
+         newclass = if_else(newclass %in% c('trunk', 'primary', 'secondary', 'tertiary'), newclass, 'other'),
+         newclass = factor(newclass, levels = rev(c('trunk', 'primary', 'secondary', 'tertiary', 'other')))) 
+```
+
+
+```{r}
+# Plotting time!
+
+theme_set(theme_void())
+
+ggplot() +
+  # Plot water first, layer the rest on top
+  geom_sf(data = water_cropped, fill = "#d1e9eb", size = 0.01) +
+    geom_sf(data = waterways_cropped, fill = "#d1e9eb", size = 0.01) +
+  geom_sf(data = railways_cropped, col = "indianred3", size = 0.2) +
+  # First plot the small streets, in lighter grey and a bit thiner
+  geom_sf(
+    data = roads_cleaned %>% filter(newclass == "other"),
+    color = "grey60",
+    size = 0.1
+  ) +
+  # Layer all major roads on top, a bit bolder, a bit darker
+  geom_sf(
+    data = roads_cleaned %>% filter(newclass != "other"),
+    color = "grey80",
+    size = 0.2
+  ) +
+  labs(caption = 'San Francisco') +
+  scale_color_manual(values = c(
+    "A" = "#0571b0",
+    "B" = "#ca0020",
+    "C" = "#5e3c99"
+  )) +
+  theme(legend.position = "none",
+        plot.caption = element_text(color = "white", 
+                                    size = 40, 
+                                    hjust = .5, 
+                                    face = "plain", 
+                                    family = "Didot"),
+        plot.background = element_rect(fill = "#282828")
+                                    )
+```
